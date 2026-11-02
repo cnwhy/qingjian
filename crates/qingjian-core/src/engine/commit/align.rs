@@ -6,9 +6,10 @@ use crate::engine::alignment::Alignment;
 use crate::parser;
 
 impl Engine {
-    /// 候选的音节逐个对到输入上：每个音节按原样 / 规范写法、模糊音或敲错变体（长的在前）、没打完的前缀消耗输入，
-    /// 先找能把**每个音节都对上**的对齐（带回溯：`pingyin` 对 拼音 时 `pin` 原样只吃三个字母会剩下 `gyin`，
-    /// 退回来按敲错变体 `ping` → `pin` 吃四个），找不到才退回逐个贪心对、对不上的地方停下。
+    /// 候选的音节逐个对到输入上：每个音节按原样 / 规范写法、没打完的前缀、简拼（只吃声母）、
+    /// 模糊音或敲错变体（长的在前）消耗输入，先找能把**每个音节都对上**的对齐（带回溯：
+    /// `pingyin` 对 拼音 时 `pin` 原样只吃三个字母会剩下 `gyin`，退回来按敲错变体 `ping` → `pin` 吃四个），
+    /// 找不到才退回逐个贪心对、对不上的地方停下。
     pub(in crate::engine) fn align(&self, input: &str, syllables: &[String]) -> Alignment {
         let mut typos = Vec::new();
         self.align_full(input, 0, syllables, &mut typos)
@@ -92,7 +93,8 @@ impl Engine {
     }
 
     /// 一个音节可以怎么消耗输入段 `rest`：(消耗字节数, 是否靠敲错变体)，按优先级排：
-    /// 原样或规范写法（`lue` / `lve`）、模糊音或敲错变体（长的在前）、整段是这个音节没打完的前缀。
+    /// 原样或规范写法（`lue` / `lve`）、整段是这个音节没打完的前缀、简拼（只吃声母，`c` 代 cheng、
+    /// `s` 代 shi）、模糊音或敲错变体（长的在前）。
     fn syllable_steps(&self, rest: &str, syllable: &str) -> Vec<(usize, bool)> {
         let mut steps = Vec::new();
         let exact = rest.get(..syllable.len()).is_some_and(|typed| {
@@ -104,7 +106,8 @@ impl Engine {
             steps.push((syllable.len(), false));
         }
         // 没打完排在变体前面：`shijia` 选 时间 是 jian 没敲完，不是把 jian 敲成了 jia
-        if !rest.is_empty() && rest.len() < syllable.len() && syllable.starts_with(rest) {
+        let unfinished = !rest.is_empty() && rest.len() < syllable.len() && syllable.starts_with(rest);
+        if unfinished {
             steps.push((rest.len(), false));
         }
         for len in (1..=rest.len().min(parser::MAX_SYLLABLE_LEN)).rev() {
@@ -116,6 +119,15 @@ impl Engine {
                 steps.push((len, false));
             } else if typo::is_variant(typed, syllable) {
                 steps.push((len, true));
+            }
+        }
+        if !unfinished {
+            // 简拼：rest 开头是音节的声母时只吃声母，长声母在前（`ch` 在 `c` 前，与切分一致）。
+            // 放在模糊音之后，避免 `suang` 对 `shuang` 先按简拼只消耗 `s`。
+            for len in parser::initial_lengths(syllable) {
+                if rest.get(..len) == Some(&syllable[..len]) {
+                    steps.push((len, false));
+                }
             }
         }
         steps

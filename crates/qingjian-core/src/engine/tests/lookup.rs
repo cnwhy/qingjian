@@ -34,6 +34,26 @@ fn initials_match_abbreviated_words_and_commit_consumes_letters() {
 }
 
 #[test]
+fn adjacent_initials_in_long_abbreviation_commit_the_whole_buffer() {
+    // 简拼 `ljchlsg` 里 cheng 只吃声母 `c`（`h` 留给 hui）：按公共前缀吃掉 `ch` 后 hui 对不上 `l`，
+    // 会残留 `lsg` 再拼成别的词（issue #870）
+    let dictionary = Dictionary::parse("蜡炬成灰泪始干\tla ju cheng hui lei shi gan\t9000\n").unwrap();
+    let mut engine = Engine::new(dictionary);
+    engine.set_input("ljchlsg");
+    let phrase = engine
+        .query()
+        .unwrap()
+        .candidates
+        .items
+        .iter()
+        .find(|c| c.text == "蜡炬成灰泪始干")
+        .unwrap()
+        .clone();
+    assert_eq!(engine.commit(&phrase), "蜡炬成灰泪始干");
+    assert!(engine.composition().is_empty());
+}
+
+#[test]
 fn unparsable_tail_is_kept_aside() {
     let mut engine = engine();
     // kaiv 唯一的纠法是删掉刚敲的 v，那不算纠错：v 留作尾巴等下一键（kaifv 会被纠成 kaifa）

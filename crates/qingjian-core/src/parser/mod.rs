@@ -14,9 +14,8 @@ use std::cmp::Reverse;
 
 pub use error::ParseError;
 pub use segmentation::{Segmentation, Syllable};
-pub use syllable::{INITIALS, MAX_SYLLABLE_LEN, RARE_SYLLABLES, SYLLABLES};
+pub use syllable::{INITIALS, MAX_SYLLABLE_LEN, RARE_SYLLABLES, SYLLABLES, initial_lengths};
 
-use syllable::initial_lengths;
 use trie::SYLLABLE_TRIE;
 
 pub fn is_syllable(s: &str) -> bool {
