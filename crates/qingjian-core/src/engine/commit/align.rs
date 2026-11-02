@@ -109,6 +109,14 @@ impl Engine {
         let unfinished = !rest.is_empty() && rest.len() < syllable.len() && syllable.starts_with(rest);
         if unfinished {
             steps.push((rest.len(), false));
+        } else {
+            // 简拼：rest 开头是音节的声母时只吃声母，长声母在前（`ch` 在 `c` 前，与切分一致）。
+            // 这一步让 `ljchlsg` 里 cheng 只吃 `c`（`h` 留给 hui），而不是按公共前缀吃掉 `ch`。
+            for len in parser::initial_lengths(syllable) {
+                if rest.get(..len) == Some(&syllable[..len]) {
+                    steps.push((len, false));
+                }
+            }
         }
         for len in (1..=rest.len().min(parser::MAX_SYLLABLE_LEN)).rev() {
             if exact && len == syllable.len() {
